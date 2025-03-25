@@ -5,273 +5,375 @@
   <title>Advanced Lithium-Ion Battery Simulator</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    #controls { margin-bottom: 20px; }
-    label { margin-right: 10px; }
-    input, select { margin-right: 20px; }
-    #warning { font-weight: bold; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      background-color: #f0f8ff; 
+      margin: 0; 
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 { text-align: center; }
+    #warning { font-weight: bold; text-align: center; margin-bottom: 10px; }
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      margin-bottom: 20px;
+    }
+    #controls > div { margin: 10px; }
+    label { margin-right: 5px; }
+    input, button { margin-right: 10px; padding: 5px; }
+    canvas { display: block; margin: auto; }
+    /* Toggle switch styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+      margin-right: 10px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #66bb6a;
+    }
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
   </style>
 </head>
 <body>
-  <h1>Advanced Lithium-Ion Battery Charge/Discharge Simulator</h1>
-  
-  <!-- User Controls -->
-  <div id="controls">
-    <label for="mode">Mode:</label>
-    <select id="mode">
-      <option value="charge">Charge</option>
-      <option value="discharge">Discharge</option>
-    </select>
+  <div class="container">
+    <h1>Advanced Lithium-Ion Battery Simulator</h1>
     
-    <label for="crate">C-Rate:</label>
-    <input type="range" id="crate" min="0.1" max="3" step="0.1" value="1">
-    <span id="crateValue">1</span>
+    <!-- Warning Message -->
+    <div id="warning" style="color: red;"></div>
     
-    <label for="temperature">Temperature (°C):</label>
-    <input type="range" id="temperature" min="10" max="60" step="1" value="25">
-    <span id="temperatureValue">25</span>
+    <!-- User Controls -->
+    <div id="controls">
+      <!-- Mode Toggle -->
+      <div>
+        <label>Mode:</label>
+        <label class="switch">
+          <input type="checkbox" id="modeToggle" checked>
+          <span class="slider"></span>
+        </label>
+        <span id="modeLabel">Charge</span>
+      </div>
+      
+      <!-- C-Rate Control -->
+      <div>
+        <label for="crate">C-Rate:</label>
+        <input type="range" id="crate" min="0.1" max="3" step="0.1" value="1">
+        <span id="crateValue">1</span>
+      </div>
+      
+      <!-- Temperature Control -->
+      <div>
+        <label for="temperature">Temperature (°C):</label>
+        <input type="range" id="temperature" min="10" max="60" step="1" value="25">
+        <span id="temperatureValue">25</span>
+      </div>
+      
+      <!-- Capacity Control -->
+      <div>
+        <label for="capacity">Battery Capacity (Ah):</label>
+        <input type="number" id="capacity" value="2" min="0.5" step="0.1">
+      </div>
+      
+      <!-- Initial SOC Control -->
+      <div>
+        <label for="initialSOC">Initial SOC (%):</label>
+        <input type="range" id="initialSOC" min="0" max="100" step="1" value="50">
+        <span id="initialSOCValue">50</span>
+      </div>
+      
+      <!-- Time Speed Control -->
+      <div>
+        <label for="timeMultiplier">Time Speed (x):</label>
+        <input type="range" id="timeMultiplier" min="0.5" max="10" step="0.5" value="1">
+        <span id="timeMultiplierValue">1</span>
+      </div>
+      
+      <!-- Start/Stop and Reset Buttons -->
+      <div>
+        <button id="startStop">Start</button>
+        <button id="reset">Reset</button>
+      </div>
+    </div>
     
-    <label for="capacity">Battery Capacity (Ah):</label>
-    <input type="number" id="capacity" value="2" min="0.5" step="0.1">
+    <!-- Chart Canvas -->
+    <canvas id="chartCanvas" width="800" height="400"></canvas>
     
-    <label for="initialSOC">Initial SOC (%):</label>
-    <input type="range" id="initialSOC" min="0" max="100" step="1" value="50">
-    <span id="initialSOCValue">50</span>
-    
-    <button id="start">Start Simulation</button>
-    <button id="reset">Reset</button>
-  </div>
-  
-  <!-- Warning Message -->
-  <div id="warning" style="color: red;"></div>
-  
-  <!-- Chart Canvas -->
-  <canvas id="chartCanvas" width="800" height="400"></canvas>
-  
-  <script>
-    // Element references
-    const modeSelect = document.getElementById('mode');
-    const crateSlider = document.getElementById('crate');
-    const crateValue = document.getElementById('crateValue');
-    const temperatureSlider = document.getElementById('temperature');
-    const temperatureValue = document.getElementById('temperatureValue');
-    const capacityInput = document.getElementById('capacity');
-    const initialSOCSlider = document.getElementById('initialSOC');
-    const initialSOCValue = document.getElementById('initialSOCValue');
-    const startButton = document.getElementById('start');
-    const resetButton = document.getElementById('reset');
-    const warningDiv = document.getElementById('warning');
-    const ctx = document.getElementById('chartCanvas').getContext('2d');
+    <script>
+      // Element references
+      const modeToggle = document.getElementById('modeToggle');
+      const modeLabel = document.getElementById('modeLabel');
+      const crateSlider = document.getElementById('crate');
+      const crateValue = document.getElementById('crateValue');
+      const temperatureSlider = document.getElementById('temperature');
+      const temperatureValue = document.getElementById('temperatureValue');
+      const capacityInput = document.getElementById('capacity');
+      const initialSOCSlider = document.getElementById('initialSOC');
+      const initialSOCValue = document.getElementById('initialSOCValue');
+      const timeMultiplierSlider = document.getElementById('timeMultiplier');
+      const timeMultiplierValue = document.getElementById('timeMultiplierValue');
+      const startStopButton = document.getElementById('startStop');
+      const resetButton = document.getElementById('reset');
+      const warningDiv = document.getElementById('warning');
+      const ctx = document.getElementById('chartCanvas').getContext('2d');
 
-    // Update slider display values
-    crateSlider.addEventListener('input', () => { crateValue.textContent = crateSlider.value; });
-    temperatureSlider.addEventListener('input', () => { temperatureValue.textContent = temperatureSlider.value; });
-    initialSOCSlider.addEventListener('input', () => { initialSOCValue.textContent = initialSOCSlider.value; });
+      // Update slider display values
+      crateSlider.addEventListener('input', () => { crateValue.textContent = crateSlider.value; });
+      temperatureSlider.addEventListener('input', () => { temperatureValue.textContent = temperatureSlider.value; });
+      initialSOCSlider.addEventListener('input', () => { initialSOCValue.textContent = initialSOCSlider.value; });
+      timeMultiplierSlider.addEventListener('input', () => { timeMultiplierValue.textContent = timeMultiplierSlider.value; });
 
-    // Simulation data arrays and variables
-    let simulationInterval;
-    let timeData = [];
-    let socData = [];
-    let voltageData = [];
-    let currentData = [];
-    let simTime = 0;
-    let chart;
+      // Mode toggle event
+      modeToggle.addEventListener('change', () => {
+        modeLabel.textContent = modeToggle.checked ? 'Charge' : 'Discharge';
+      });
 
-    // Initialize the Chart.js line chart
-    function initChart() {
-      chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: timeData,
-          datasets: [{
-            label: 'State of Charge (%)',
-            data: socData,
-            borderColor: 'blue',
-            fill: false,
-            yAxisID: 'y'
+      // Simulation data arrays and variables
+      let simulationInterval;
+      let simulationRunning = false;
+      let timeData = [];
+      let socData = [];
+      let voltageData = [];
+      let currentData = [];
+      let simTime = 0;
+      let chart;
+
+      // Initialize the Chart.js line chart
+      function initChart() {
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: timeData,
+            datasets: [{
+              label: 'State of Charge (%)',
+              data: socData,
+              borderColor: 'blue',
+              fill: false,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Voltage (V)',
+              data: voltageData,
+              borderColor: 'green',
+              fill: false,
+              yAxisID: 'y1'
+            },
+            {
+              label: 'Current (A)',
+              data: currentData,
+              borderColor: 'red',
+              fill: false,
+              yAxisID: 'y2'
+            }]
           },
-          {
-            label: 'Voltage (V)',
-            data: voltageData,
-            borderColor: 'green',
-            fill: false,
-            yAxisID: 'y1'
-          },
-          {
-            label: 'Current (A)',
-            data: currentData,
-            borderColor: 'red',
-            fill: false,
-            yAxisID: 'y2'
-          }]
-        },
-        options: {
-          scales: {
-            y: {
-              type: 'linear',
-              position: 'left',
-              title: { display: true, text: 'SOC (%)' },
-              min: 0,
-              max: 100
+          options: {
+            scales: {
+              y: {
+                type: 'linear',
+                position: 'left',
+                title: { display: true, text: 'SOC (%)' },
+                min: 0,
+                max: 100
+              },
+              y1: {
+                type: 'linear',
+                position: 'right',
+                title: { display: true, text: 'Voltage (V)' },
+                min: 2.8,
+                max: 4.5,
+                grid: { drawOnChartArea: false }
+              },
+              y2: {
+                type: 'linear',
+                position: 'right',
+                title: { display: true, text: 'Current (A)' },
+                grid: { drawOnChartArea: false },
+                offset: true
+              },
+              x: {
+                title: { display: true, text: 'Time (s)' }
+              }
             },
-            y1: {
-              type: 'linear',
-              position: 'right',
-              title: { display: true, text: 'Voltage (V)' },
-              min: 2.8,
-              max: 4.5,
-              grid: { drawOnChartArea: false }
+            interaction: {
+              mode: 'index',
+              intersect: false
             },
-            y2: {
-              type: 'linear',
-              position: 'right',
-              title: { display: true, text: 'Current (A)' },
-              grid: { drawOnChartArea: false },
-              offset: true
-            },
-            x: {
-              title: { display: true, text: 'Time (s)' }
+            plugins: {
+              tooltip: { enabled: true }
             }
-          },
-          interaction: {
-            mode: 'index',
-            intersect: false
-          },
-          plugins: {
-            tooltip: { enabled: true }
           }
+        });
+      }
+
+      // Define an open-circuit voltage (OCV) function with an exponential shape
+      function OCV(soc) {
+        // Returns voltage in V as a function of SOC (%)
+        return 3.0 + 1.2 * (1 - Math.exp(-0.05 * soc));
+      }
+
+      // Initialize simulation variables
+      let battery;
+      function initSimulation() {
+        simTime = 0;
+        timeData = [];
+        socData = [];
+        voltageData = [];
+        currentData = [];
+
+        const mode = modeToggle.checked ? 'charge' : 'discharge';
+        const crate = parseFloat(crateSlider.value);
+        const capacity = parseFloat(capacityInput.value); // in Ah
+        const initialSOC = parseFloat(initialSOCSlider.value);
+        const temperature = parseFloat(temperatureSlider.value);
+
+        // Temperature warning and capacity degradation
+        warningDiv.textContent = (temperature > 45) 
+          ? "Warning: High temperature! Effective capacity reduced due to degradation." 
+          : "";
+        
+        battery = {
+          capacity: capacity,
+          soc: initialSOC,
+          mode: mode,
+          crate: crate,
+          temperature: temperature,
+          effectiveCapacity: capacity,
+          state: null,
+          timeInCV: 0,
+          initialCurrentCV: 0,
+          voltage: OCV(initialSOC),
+          current: 0
+        };
+
+        if(chart) { chart.destroy(); }
+        initChart();
+      }
+
+      // Advanced simulation step using a variable time step (dt)
+      function simulateStep() {
+        const dt = parseFloat(timeMultiplierSlider.value); // dt multiplier (seconds)
+        const temperature = battery.temperature;
+        
+        // Adjust effective capacity based on temperature
+        battery.effectiveCapacity = battery.capacity * ((temperature > 45) ? (1 - 0.01 * (temperature - 45)) : 1);
+        
+        if(battery.mode === "charge") {
+          if(!battery.state) { battery.state = "CC"; }
+          if(battery.state === "CC") {
+            let I = battery.crate * battery.effectiveCapacity;
+            let dSOC = (I * dt) / (battery.effectiveCapacity * 3600) * 100;
+            battery.soc += dSOC;
+            let ocv = OCV(battery.soc);
+            if(ocv >= 4.2) {
+              battery.state = "CV";
+              battery.timeInCV = 0;
+              battery.initialCurrentCV = I;
+              battery.voltage = 4.2;
+            } else {
+              battery.voltage = ocv;
+            }
+            battery.current = I;
+          } else if(battery.state === "CV") {
+            battery.timeInCV += dt;
+            const k = 0.05;
+            let I = battery.initialCurrentCV * Math.exp(-k * battery.timeInCV);
+            battery.current = I;
+            battery.voltage = 4.2;
+            let dSOC = (I * dt) / (battery.effectiveCapacity * 3600) * 100;
+            battery.soc += dSOC;
+          }
+          if(battery.soc >= 100) {
+            battery.soc = 100;
+            stopSimulation();
+          }
+        } else if(battery.mode === "discharge") {
+          let I = battery.crate * battery.effectiveCapacity;
+          battery.current = -I;
+          let dSOC = (I * dt) / (battery.effectiveCapacity * 3600) * 100;
+          battery.soc -= dSOC;
+          let R = 0.05;
+          let ocv = OCV(battery.soc);
+          battery.voltage = ocv - I * R;
+          if(battery.soc <= 0 || battery.voltage <= 3.0) {
+            battery.soc = Math.max(battery.soc, 0);
+            stopSimulation();
+          }
+        }
+        
+        simTime += dt;
+        timeData.push(simTime.toFixed(1));
+        socData.push(battery.soc.toFixed(2));
+        voltageData.push(battery.voltage.toFixed(2));
+        currentData.push(battery.current.toFixed(2));
+        
+        chart.data.labels = timeData;
+        chart.data.datasets[0].data = socData;
+        chart.data.datasets[1].data = voltageData;
+        chart.data.datasets[2].data = currentData;
+        chart.update();
+      }
+
+      // Start/Stop simulation control
+      function startSimulation() {
+        simulationInterval = setInterval(simulateStep, 1000);
+        simulationRunning = true;
+        startStopButton.textContent = "Stop";
+      }
+
+      function stopSimulation() {
+        clearInterval(simulationInterval);
+        simulationRunning = false;
+        startStopButton.textContent = "Start";
+      }
+
+      startStopButton.addEventListener('click', () => {
+        if(simulationRunning) {
+          stopSimulation();
+        } else {
+          if(simTime === 0) initSimulation();
+          startSimulation();
         }
       });
-    }
 
-    // Define an open-circuit voltage (OCV) function with an exponential shape
-    function OCV(soc) {
-      // Returns voltage in V as a function of SOC (%)
-      // At 0% SOC: ~3.0 V, at 100% SOC: ~4.2 V
-      return 3.0 + 1.2 * (1 - Math.exp(-0.05 * soc));
-    }
+      resetButton.addEventListener('click', () => {
+        stopSimulation();
+        initSimulation();
+      });
 
-    // Initialize simulation variables
-    let battery;
-    function initSimulation() {
-      simTime = 0;
-      timeData = [];
-      socData = [];
-      voltageData = [];
-      currentData = [];
-      
-      const mode = modeSelect.value; // "charge" or "discharge"
-      const crate = parseFloat(crateSlider.value);
-      const capacity = parseFloat(capacityInput.value); // in Ah
-      const initialSOC = parseFloat(initialSOCSlider.value);
-      const temperature = parseFloat(temperatureSlider.value);
-
-      // Temperature warning (and note degradation effect on effective capacity)
-      warningDiv.textContent = (temperature > 45) 
-        ? "Warning: High temperature! Effective capacity reduced due to degradation." 
-        : "";
-      
-      // Battery initial state. For charging, we use a two-phase model: CC then CV.
-      battery = {
-        capacity: capacity,      // Nominal capacity in Ah
-        soc: initialSOC,         // State-of-charge (%)
-        mode: mode,
-        crate: crate,            // C-rate (multiplier of capacity)
-        temperature: temperature,
-        effectiveCapacity: capacity, // Will be adjusted based on temperature
-        state: null,             // For charge mode: "CC" or "CV"
-        timeInCV: 0,             // Time spent in constant-voltage mode
-        initialCurrentCV: 0,     // Reference current at start of CV phase
-        voltage: OCV(initialSOC),// Initial voltage based on SOC
-        current: 0
-      };
-      
-      // Destroy any existing chart and reinitialize
-      if(chart) { chart.destroy(); }
-      initChart();
-    }
-
-    // Advanced simulation step (1-second timestep)
-    function simulateStep() {
-      const dt = 1; // seconds
-      const temperature = battery.temperature;
-      
-      // Adjust effective capacity based on temperature (simple linear degradation if >45°C)
-      battery.effectiveCapacity = battery.capacity * ((temperature > 45) ? (1 - 0.01 * (temperature - 45)) : 1);
-      
-      if(battery.mode === "charge") {
-        // Charging: use constant current (CC) until voltage reaches 4.2V, then constant voltage (CV)
-        if(!battery.state) {
-          battery.state = "CC"; // default: constant current phase
-        }
-        if(battery.state === "CC") {
-          let I = battery.crate * battery.effectiveCapacity;  // charging current in A
-          let dSOC = (I * dt) / (battery.effectiveCapacity * 3600) * 100;
-          battery.soc += dSOC;
-          let ocv = OCV(battery.soc);
-          if(ocv >= 4.2) {
-            // Transition to constant-voltage phase
-            battery.state = "CV";
-            battery.timeInCV = 0;
-            battery.initialCurrentCV = I;
-            battery.voltage = 4.2;
-          } else {
-            battery.voltage = ocv;
-          }
-          battery.current = I;
-        } else if(battery.state === "CV") {
-          battery.timeInCV += dt;
-          const k = 0.05; // decay constant for current in CV mode
-          let I = battery.initialCurrentCV * Math.exp(-k * battery.timeInCV);
-          battery.current = I;
-          battery.voltage = 4.2; // voltage is held constant in CV mode
-          let dSOC = (I * dt) / (battery.effectiveCapacity * 3600) * 100;
-          battery.soc += dSOC;
-        }
-        if(battery.soc >= 100) {
-          battery.soc = 100;
-          clearInterval(simulationInterval);
-        }
-      } else if(battery.mode === "discharge") {
-        // Discharging: constant current discharge with an internal resistance drop.
-        let I = battery.crate * battery.effectiveCapacity; // discharge current in A
-        battery.current = -I; // negative indicates discharge
-        let dSOC = (I * dt) / (battery.effectiveCapacity * 3600) * 100;
-        battery.soc -= dSOC;
-        let R = 0.05; // internal resistance (ohms)
-        let ocv = OCV(battery.soc);
-        battery.voltage = ocv - I * R; // simple voltage drop model
-        if(battery.soc <= 0 || battery.voltage <= 3.0) {
-          battery.soc = Math.max(battery.soc, 0);
-          clearInterval(simulationInterval);
-        }
-      }
-      
-      // Record data for plotting
-      simTime += dt;
-      timeData.push(simTime);
-      socData.push(battery.soc.toFixed(2));
-      voltageData.push(battery.voltage.toFixed(2));
-      currentData.push(battery.current.toFixed(2));
-      
-      // Update chart
-      chart.data.labels = timeData;
-      chart.data.datasets[0].data = socData;
-      chart.data.datasets[1].data = voltageData;
-      chart.data.datasets[2].data = currentData;
-      chart.update();
-    }
-
-    // Event listeners for start and reset
-    startButton.addEventListener('click', () => {
+      // Initialize simulation on page load
       initSimulation();
-      simulationInterval = setInterval(simulateStep, 1000);
-    });
-
-    resetButton.addEventListener('click', () => {
-      clearInterval(simulationInterval);
-      initSimulation();
-    });
-  </script>
+    </script>
+  </div>
 </body>
 </html>
